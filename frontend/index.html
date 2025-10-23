@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contract AI Assistant</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Login Screen -->
+    <div id="login-container">
+        <h1>Contract AI Assistant</h1>
+        <p>Please sign in to continue</p>
+        <button id="login-btn">Sign in with Google</button>
+    </div>
+
+    <!-- Main Application -->
+    <div id="app-container" class="hidden">
+        <header>
+            <div id="user-info">
+                <p id="user-email"></p>
+                <button id="logout-btn">Sign Out</button>
+            </div>
+        </header>
+
+        <main class="container">
+            <!-- History Section -->
+            <div class="card">
+                <h2>Analysis History</h2>
+                <div id="history-list"></div>
+            </div>
+
+            <!-- Unified Analyzer Section -->
+            <div class="card">
+                <h2>Analyze Document</h2>
+                <form id="analyze-form">
+                    <div class="form-group">
+                        <label for="file-input">1. Upload Document</label>
+                        <input type="file" id="file-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="qa-input">2. (Optional) Ask a specific question</label>
+                        <input type="text" id="qa-input" placeholder="e.g., What is the termination clause?">
+                    </div>
+                    <div class="form-group">
+                        <label for="highlight-input">3. (Optional) Specify highlight criteria</label>
+                        <input type="text" id="highlight-input" placeholder="e.g., confidential information">
+                    </div>
+                    <button type="submit">Analyze Document</button>
+                </form>
+                <div id="analyze-spinner" class="spinner hidden"></div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="results-container" class="hidden">
+                <hr>
+                <h2>Analysis Results</h2>
+                <p><strong>Document ID:</strong> <span id="doc-id-output"></span></p>
+
+                <div class="card">
+                    <h3>Document Classification</h3>
+                    <pre id="classification-output">...</pre>
+                </div>
+                <div class="card">
+                    <h3>Extracted Entities</h3>
+                    <pre id="entities-output">...</pre>
+                </div>
+                <div class="card">
+                    <h3>Key Clauses</h3>
+                    <pre id="clauses-output">...</pre>
+                </div>
+                <div class="card">
+                    <h3>Risk Analysis</h3>
+                    <pre id="risks-output">...</pre>
+                </div>
+                <div class="card">
+                    <h3>Highlights</h3>
+                    <pre id="highlights-output">...</pre>
+                    <button id="view-highlighted-btn" class="hidden">View Highlighted Document</button>
+                </div>
+
+                <div class="card">
+                    <h3>Q&A Response</h3>
+                    <pre id="qa-output">...</pre>
+                </div>
+
+                <!-- Follow-up Questions -->
+                <div class="card">
+                    <h3>Ask a Follow-up Question</h3>
+                    <form id="ask-form">
+                        <input type="text" id="ask-input" placeholder="Ask another question..." required>
+                        <button type="submit">Ask</button>
+                    </form>
+                    <div id="ask-spinner" class="spinner hidden"></div>
+                    <div class="response-box">
+                        <h3>Follow-up Answer:</h3>
+                        <pre id="ask-output">...</pre>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
