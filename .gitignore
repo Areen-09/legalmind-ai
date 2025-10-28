@@ -130,4 +130,4 @@ cython_debug/
 # Firebase service account key
 legalmind-ai-472217-firebase-adminsdk-fbsvc-*.json
 
-frontend/script.js
+frontend_old/script.js

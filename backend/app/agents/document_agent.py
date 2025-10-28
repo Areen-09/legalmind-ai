@@ -7,13 +7,16 @@ from typing import TypedDict, List
 # --- State Definition ---
 class DocumentState(TypedDict):
     user_id: str
-    file: object # The re-readable file object
+    file: object
     doc_id: str
     text: str
     classification: str
-    entities: list
-    clauses: list
-    highlight_suggestions: str
+    # Fields from the new, detailed analysis
+    summary: str
+    key_clause_discussion: str
+    risks: List[str]
+    questions: List[dict]
+    highlights: dict
 
 # --- Agent Steps ---
 
@@ -37,47 +40,15 @@ def extract_text_and_classify(state: DocumentState):
     state["classification"] = llm_service.classify_document(text)
     return state
 
-def extract_entities_and_clauses(state: DocumentState):
-    """
-    Extracts key entities and clauses from the document text.
-    Includes robust parsing for the LLM's response.
-    """
-    print("--- AGENT STEP: Extracting entities and clauses... ---")
-    raw_result = llm_service.extract_entities_and_clauses(state["text"])
+def get_full_analysis(state: DocumentState):
+    """Gets the full analysis from the LLM service and updates the state."""
+    print("--- AGENT STEP: Getting full analysis... ---")
+    analysis = llm_service.get_full_analysis(state["text"], state["classification"])
     
-    # Clean the raw string: remove markdown backticks and 'json' identifier
-    clean_json_str = re.sub(r'```json\s*|\s*```', '', raw_result, flags=re.DOTALL)
-
-    try:
-        result = json.loads(clean_json_str)
-        
-        # The LLM is returning a different structure, so we adapt to it.
-        # We look inside 'contract_details' for the keys we need.
-        contract_details = result.get("contract_details", {})
-        
-        # Safely get entities and clauses, defaulting to empty lists.
-        state["entities"] = contract_details.get("parties", [])
-        clauses = contract_details.get("clauses", [])
-        state["clauses"] = clauses
-
-        # --- FIX: Handle variable clause structures from the LLM ---
-        suggestions = []
-        for clause in clauses:
-            if isinstance(clause, dict) and "clause_name" in clause:
-                suggestions.append(clause["clause_name"])
-            elif isinstance(clause, str):
-                suggestions.append(clause.split(":")[0]) # Handle simple strings
-        
-        state["highlight_suggestions"] = "Key clauses: " + ", ".join(suggestions)
-        print("--- AGENT STEP: Successfully parsed entities and clauses. ---")
-
-    except (json.JSONDecodeError, TypeError) as e:
-        print(f"--- ❌ AGENT ERROR: Failed to parse LLM output. Error: {e} ---")
-        print(f"--- Raw LLM output was: {raw_result} ---")
-        state["entities"] = []
-        state["clauses"] = []
-        
+    # --- FIX: Update the state with the results from the analysis ---
+    state.update(analysis)
     return state
+
 
 def embed_and_store(state: DocumentState):
     """Creates embeddings for the document text and stores it in Pinecone."""
@@ -98,7 +69,7 @@ def decide_to_continue(state: DocumentState):
 graph = StateGraph(DocumentState)
 graph.add_node("save", save_file)
 graph.add_node("classify", extract_text_and_classify)
-graph.add_node("extract", extract_entities_and_clauses)
+graph.add_node("get_full_analysis", get_full_analysis)
 graph.add_node("embed", embed_and_store)
 
 graph.set_entry_point("save")
@@ -107,12 +78,11 @@ graph.add_conditional_edges(
     "classify",
     decide_to_continue,
     {
-        "continue": "extract",
+        "continue": "get_full_analysis",
         "end": END,
     },
 )
-graph.add_edge("extract", "embed")
+graph.add_edge("get_full_analysis", "embed")
 graph.add_edge("embed", END)
 
 document_agent = graph.compile()
-

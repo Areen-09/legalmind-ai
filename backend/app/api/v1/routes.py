@@ -60,13 +60,21 @@ async def analyze_document(
         })
         
         # The result from the main_agent is the final state
+        # print(f"--- MAIN AGENT FINAL OUTPUT: {result} ---")
+        
+        # --- FIX: The 'file' object in the state is not JSON serializable ---
+        # We need to remove it before returning the response.
+        if "document_analysis" in result and "file" in result["document_analysis"]:
+            del result["document_analysis"]["file"]
+
         return {
             "doc_id": result.get("doc_id"),
             "document_analysis": result.get("document_analysis"),
             "risks": result.get("risks"),
             "highlights": result.get("highlights"),
             "highlighted_doc_url": result.get("highlighted_doc_url"),
-            "qa_response": result.get("qa_response")
+            "qa_response": result.get("qa_response"),
+            "clause_explanation": result.get("clause_explanation"),
         }
 
 

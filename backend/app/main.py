@@ -15,7 +15,9 @@ origins = [
     "http://localhost",
     "http://localhost:8001",
     "http://127.0.0.1:8001",
-    "http://127.0.0.1:5500/frontend/index.html" # The default port for python's http.server
+    # Allow the new Next.js frontend (development)
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
 app.add_middleware(

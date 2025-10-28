@@ -1,62 +1,38 @@
 from fastapi.testclient import TestClient
 
 
-def test_upload_document(client: TestClient, mock_agents, mock_storage):
-    """
-    Tests the successful upload of a document.
-    """
-    # Create a dummy file in memory
+def test_analyze_document(client: TestClient, mock_agents, mock_storage):
+    """Tests the /analyze endpoint which uploads and runs a full analysis."""
     mock_file_content = b"This is a dummy pdf file."
     files = {"file": ("test.pdf", mock_file_content, "application/pdf")}
+    data = {
+        "qa_question": "Summarize the key points.",
+        "highlight_criteria": "termination"
+    }
 
-    response = client.post("/api/v1/upload", files=files)
-
+    response = client.post("/api/v1/analyze", files=files, data=data)
     assert response.status_code == 200
     json_response = response.json()
-    assert "doc_id" in json_response
-    assert json_response["doc_id"] == "mock-doc-id-456"
-    assert "message" in json_response
+    assert json_response.get("doc_id") == "mock-doc-id-456"
+    assert "document_analysis" in json_response
+    assert json_response["risks"] == ["mock risk 1", "mock risk 2"]
+    assert json_response["highlights"] == ["section 1", "section 2"]
 
 
 def test_ask_question(client: TestClient, mock_agents):
-    """
-    Tests the /ask endpoint.
-    """
-    data = {
-        "doc_id": "some-doc-id",
-        "question": "What is the meaning of this document?",
-    }
+    """Tests the /ask endpoint (conversational QA)."""
+    data = {"doc_id": "some-doc-id", "question": "What is the meaning?"}
     response = client.post("/api/v1/ask", data=data)
-
     assert response.status_code == 200
     json_response = response.json()
     assert json_response["answer"] == "This is a mock answer."
     assert json_response["sources"] == []
 
 
-def test_analyze_risks(client: TestClient, mock_agents):
-    """
-    Tests the /risk endpoint.
-    """
-    data = {"doc_id": "some-doc-id"}
-    response = client.post("/api/v1/risk", data=data)
-
+def test_get_history(client: TestClient, mock_storage):
+    """Tests the /history endpoint which returns saved analyses."""
+    response = client.get("/api/v1/history")
     assert response.status_code == 200
     json_response = response.json()
-    assert json_response["risks"] == ["mock risk 1", "mock risk 2"]
-
-
-def test_highlight_document(client: TestClient, mock_agents):
-    """
-    Tests the /highlight endpoint.
-    """
-    data = {
-        "doc_id": "some-doc-id",
-        "criteria": "termination clause",
-    }
-    response = client.post("/api/v1/highlight", data=data)
-
-    assert response.status_code == 200
-    json_response = response.json()
-    assert "highlighted_sections" in json_response
-    assert isinstance(json_response["highlighted_sections"], list)
+    assert "history" in json_response
+    assert isinstance(json_response["history"], list)

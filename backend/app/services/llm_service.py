@@ -1,21 +1,14 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
 from app.core.config import config
+from app.core.prompts import MAIN_SYSTEM_PROMPT, WORKFLOW_PROMPTS, CLAUSE_EXPLANATION_PROMPT
+import json
 
 # Initialize the Language Model
 llm = ChatGoogleGenerativeAI(model=config.model_name, google_api_key=config.google_api_key)
 
 def classify_document(text: str) -> str:
     """Uses the LLM to classify the type of document and validate it."""
-    supported_doctypes = [
-        "Non-Disclosure Agreements (NDAs)",
-        "Employment Contracts",
-        "Rental & Lease Agreements",
-        "Terms of Service",
-        "Privacy Policies",
-        "General Business Contracts",
-        "Sales Agreements",
-        "Service Contracts",
-    ]
+    supported_doctypes = list(WORKFLOW_PROMPTS.keys())
     
     prompt = f"""
     Based on the following text, what is the primary classification of this document?
@@ -36,59 +29,47 @@ def classify_document(text: str) -> str:
     
     return classification
 
+def get_full_analysis(text: str, classification: str) -> dict:
+    """Generates a full analysis of the document based on its classification."""
+    prompt_template = WORKFLOW_PROMPTS.get(classification)
+    if not prompt_template:
+        raise ValueError(f"No prompt template found for classification: {classification}")
 
-def extract_entities_and_clauses(text: str) -> str:
-    """Uses the LLM to extract key entities and clauses from a document."""
-    prompt = f"""
-    Analyze the following document text and extract key information.
-    Return your response as a single, clean JSON object with the following structure:
-    {{
-      "contract_details": {{
-        "parties": [{{ "name": "...", "role": "..." }}],
-        "dates": {{ "agreement_date": {{ "day": "...", "month": "...", "year": "..." }} }},
-        "amounts": [{{ "description": "...", "value": "..." }}],
-        "clauses": [{{ "section": "...", "sub_section": "...", "text": "..." }}]
-      }}
-    }}
+    # Construct the full prompt
+    full_prompt = f"""
+    {MAIN_SYSTEM_PROMPT}
 
-    Text:
+    {prompt_template['instructions']}
+
+    Document Text:
     ---
     {text}
-    """
-    response = llm.invoke(prompt)
-    return response.content
-
-def extract_risks_and_obligations(text: str) -> str:
-    """Uses the LLM to identify potential risks and obligations in a document."""
-    prompt = f"""
-    Analyze the following document text for potential risks, liabilities, and key obligations for the parties involved.
-    Return your response as a single, clean JSON object with the following structure:
-    {{
-      "risks": ["A description of a potential risk...", "Another potential risk..."]
-    }}
-
-    Text:
     ---
-    {text}
-    """
-    response = llm.invoke(prompt)
-    return response.content
 
-def find_sections_for_highlighting(text: str, criteria: str) -> str:
+    Instructions: Generate a JSON response with the following structure: {prompt_template['json_structure']}
+    
+    1. Summary (summary): {prompt_template['summary_prompt']}
+    2. Key Clause Discussion (key_clause_discussion): {prompt_template['key_clause_discussion_prompt']}
+    3. Risks (risks): {prompt_template['risks_prompt']}
+    4. Questions (questions): Answer the following based only on the text. If not found, state "Not specified."
+    {json.dumps(prompt_template['questions'], indent=4)}
+    5. Highlights (highlights): Extract the exact, verbatim text for the following. If not found, state "Not Found."
+    {json.dumps(prompt_template['highlights'], indent=4)}
     """
-    New function: Uses the LLM to find text sections that match a given criteria.
-    """
-    prompt = f"""
-    Analyze the following document text. Your task is to find and extract all sentences or short paragraphs that are directly related to the following criteria: "{criteria}".
+    
+    response = llm.invoke(full_prompt)
+    
+    # Extract the JSON part of the response
+    import re
+    json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
+    if not json_match:
+        raise ValueError("No JSON object found in the LLM's response.")
+    
+    return json.loads(json_match.group(0))
 
-    Return your response as a single, clean JSON object with the following structure:
-    {{
-      "sections": ["The first matching text section...", "The second matching text section...", "..."]
-    }}
 
-    Text:
-    ---
-    {text}
-    """
+def explain_clauses(discussion_text: str) -> str:
+    """Uses the LLM to explain the key clause discussion in simple terms."""
+    prompt = CLAUSE_EXPLANATION_PROMPT.format(discussion_text=discussion_text)
     response = llm.invoke(prompt)
     return response.content

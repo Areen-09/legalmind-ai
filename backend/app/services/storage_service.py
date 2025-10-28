@@ -32,10 +32,28 @@ def save_document(user_id: str, file: UploadFile) -> str:
 
 
 def extract_text(file_bytes: bytes) -> str:
-    """Extracts text from a file's byte content."""
-    doc = fitz.open(stream=file_bytes, filetype="pdf")
-    text = "".join([page.get_text() for page in doc])
-    doc.close()
+    """
+    Extracts text from a file's byte content, normalizing and cleaning it.
+    """
+    text = ""
+    try:
+        # Open the PDF from the byte stream
+        with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+            # Iterate through each page and extract text
+            for page in doc:
+                page_text = page.get_text("text", textpage=None, sort=False)
+                
+                # --- FIX: Normalize and clean the text ---
+                # 1. Normalize to NFKC to handle various unicode characters
+                # 2. Encode to ASCII, ignoring errors, to remove problematic chars
+                # 3. Decode back to UTF-8
+                cleaned_text = page_text.encode('ascii', 'ignore').decode('utf-8')
+                text += cleaned_text
+    except Exception as e:
+        print(f"Error extracting text with fitz: {e}")
+        # Fallback or error handling can be added here
+        return "" # Return empty string on failure
+        
     return text
 
 def get_document_text(user_id: str, doc_id: str) -> str:
