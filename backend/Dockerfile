@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED 1
 WORKDIR /app
 
 # Install pandoc
-RUN apt-get update && apt-get install -y pandoc && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y pandoc texlive-latex-base && rm -rf /var/lib/apt/lists/*
 
 # Install uv, a fast Python package installer
 RUN pip install uv
