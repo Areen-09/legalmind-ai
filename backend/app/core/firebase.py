@@ -7,21 +7,30 @@ load_dotenv()
 
 # --- Robust Firebase Admin SDK Initialization ---
 try:
-    # The SDK will automatically find the credentials file if the
-    # GOOGLE_APPLICATION_CREDENTIALS environment variable is set.
-    cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-    bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET")
+    # Construct credentials from environment variables
+    creds_json = {
+        "type": os.getenv("TYPE"),
+        "project_id": os.getenv("PROJECT_ID"),
+        "private_key_id": os.getenv("PRIVATE_KEY_ID"),
+        "private_key": os.getenv("PRIVATE_KEY").replace('\\n', '\n'),
+        "client_email": os.getenv("CLIENT_EMAIL"),
+        "client_id": os.getenv("CLIENT_ID"),
+        "auth_uri": os.getenv("AUTH_URI"),
+        "token_uri": os.getenv("TOKEN_URI"),
+        "auth_provider_x509_cert_url": os.getenv("AUTH_PROVIDER_X509_CERT_URL"),
+        "client_x509_cert_url": os.getenv("CLIENT_X509_CERT_URL"),
+        "universe_domain": os.getenv("UNIVERSE_DOMAIN"),
+    }
 
-    if not cred_path:
-        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS environment variable not set.")
+    bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET")
     if not bucket_name:
         raise ValueError("FIREBASE_STORAGE_BUCKET environment variable not set.")
 
-    cred = credentials.Certificate(cred_path)
+    cred = credentials.Certificate(creds_json)
     firebase_admin.initialize_app(cred, {
         'storageBucket': bucket_name
     })
-    print("--- Firebase Admin SDK initialized successfully. ---")
+    print("--- Firebase Admin SDK initialized successfully from environment variables. ---")
 
 except Exception as e:
     # This will print a very clear error message if initialization fails.
