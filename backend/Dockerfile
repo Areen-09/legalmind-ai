@@ -15,7 +15,7 @@ RUN pip install uv
 COPY pyproject.toml uv.lock* ./
 
 # Install dependencies using uv
-RUN uv pip install --system --no-cache --locked -r pyproject.toml
+RUN uv pip install --system --no-cache -r pyproject.toml
 
 # Copy the application code into the container
 COPY ./app /app/app
