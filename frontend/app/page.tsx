@@ -9,8 +9,13 @@ import { AboutSection } from "@/components/sections/about-section"
 import { FAQSection } from "@/components/sections/faq-section"
 import { MagneticButton } from "@/components/magnetic-button"
 import { useRef, useEffect, useState } from "react"
+import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, User } from "firebase/auth"
+import { auth } from "@/lib/firebase"
+import { ProfileDropdown } from "@/components/profile-dropdown"
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+  const [user, setUser] = useState<User | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [currentSection, setCurrentSection] = useState(0)
   const [isLoaded, setIsLoaded] = useState(false)
@@ -18,6 +23,7 @@ export default function Home() {
   const touchStartX = useRef(0)
   const shaderContainerRef = useRef<HTMLDivElement>(null)
   const scrollThrottleRef = useRef<number>(undefined)
+  const router = useRouter();
 
   useEffect(() => {
     const checkShaderReady = () => {
@@ -48,6 +54,24 @@ export default function Home() {
       clearTimeout(fallbackTimer)
     }
   }, [])
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser)
+    })
+    return () => unsubscribe()
+  }, [])
+
+  const handleSignIn = async () => {
+    const provider = new GoogleAuthProvider()
+    try {
+      await signInWithPopup(auth, provider)
+    } catch (error: any) {
+      if (error.code !== "auth/cancelled-popup-request") {
+        console.error("Error signing in with Google:", error)
+      }
+    }
+  }
 
   const scrollToSection = (index: number) => {
     if (scrollContainerRef.current) {
@@ -246,9 +270,13 @@ export default function Home() {
           ))}
         </div>
 
-        <MagneticButton variant="secondary" onClick={() => scrollToSection(4)}>
-          Get Started
-        </MagneticButton>
+        {user ? (
+          <ProfileDropdown user={user} />
+        ) : (
+          <MagneticButton variant="secondary" onClick={handleSignIn}>
+            Get Started
+          </MagneticButton>
+        )}
       </nav>
 
       <div
@@ -278,9 +306,15 @@ export default function Home() {
               <MagneticButton
                 size="lg"
                 variant="primary"
-                onClick={() => window.open("/", "_blank")}
+                onClick={() => {
+                  if (user) {
+                    router.push(`/dashboard/${user.uid}`)
+                  } else {
+                    handleSignIn()
+                  }
+                }}
               >
-                upload
+                Dashboard
               </MagneticButton>
               <MagneticButton size="lg" variant="secondary" onClick={() => scrollToSection(2)}>
                 View Demo

@@ -15,6 +15,7 @@ class DocumentState(TypedDict):
     summary: str
     key_clause_discussion: str
     risks: List[str]
+    risk_score: int
     questions: List[dict]
     highlights: dict
 
@@ -35,7 +36,7 @@ def extract_text_and_classify(state: DocumentState):
     # The 'fitz' library needs the raw content, not our custom wrapper object.
     file_content_bytes = state["file"].file.read()
     
-    text = storage_service.extract_text(file_content_bytes)
+    text = storage_service.extract_text(file_content_bytes, state["file"].filename)
     state["text"] = text
     state["classification"] = llm_service.classify_document(text)
     return state

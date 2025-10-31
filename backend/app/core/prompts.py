@@ -27,10 +27,11 @@ Format Adherence: Always generate your response in the precise JSON format speci
 WORKFLOW_PROMPTS = {
     "Non-Disclosure Agreements (NDAs)": {
         "instructions": "Analyze the Non-Disclosure Agreement below and provide a JSON response.",
-        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "questions": [], "highlights": {}}',
+        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "risk_score": 0, "questions": [], "highlights": {}}',
         "summary_prompt": "Provide a 3-4 line neutral summary of the document's purpose, identifying the parties and the general nature of the information being protected.",
         "key_clause_discussion_prompt": "Identify the headings of the most important clauses. Return only a list of the clause headings. Focus on: 1) The Definition of Confidential Information, 2) The Receiving Party's Obligations, and 3) The Term.",
         "risks_prompt": 'Identify potential risks. For each risk, specify the clause it relates to and explain the risk in a single sentence. Focus on:\n\nAn overly broad or vague definition of "Confidential Information."\nUnilateral (one-sided) obligations.\nAn excessively long or perpetual duration for the confidentiality obligation.\nThe absence of a "residuals" clause.\nHarsh or disproportional penalties for breach.',
+        "risk_score_prompt": "Based on the identified risks, provide an overall risk score from 1 (very high risk) to 100 (very low risk). The score should reflect the severity and potential impact of the risks, not just the quantity. A standard, balanced agreement should score around 85. A one-sided or poorly drafted agreement should score much lower.",
         "questions": [
             "Who is the Disclosing Party and who is the Receiving Party?",
             "What is the effective date of the agreement?",
@@ -48,10 +49,11 @@ WORKFLOW_PROMPTS = {
     },
     "Employment Contracts": {
         "instructions": "Analyze the Employment Contract below and provide a JSON response.",
-        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "questions": [], "highlights": {}}',
+        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "risk_score": 0, "questions": [], "highlights": {}}',
         "summary_prompt": "Provide a 3-4 line neutral summary of the document's purpose, stating the employer, the employee, and the position.",
         "key_clause_discussion_prompt": "Identify the headings of the most important clauses. Return only a list of the clause headings. Focus on: 1) Compensation and Benefits, 2) Restrictive Covenants, 3) Termination, and 4) Intellectual Property.",
         "risks_prompt": 'Identify potential risks. For each risk, specify the clause it relates to and explain the risk in a single sentence. Focus on:\n\nVague job responsibilities.\nBroad or restrictive non-compete/non-solicitation clauses (check duration, geography, scope).\n"At-will" language that allows termination for any reason.\nUnclear or purely discretionary bonus/commission structures.\nUnfavorable termination clauses (e.g., vague "for cause" definitions).\nClauses assigning ownership of all employee inventions, even personal ones.',
+        "risk_score_prompt": "Based on the identified risks, provide an overall risk score from 1 (very high risk) to 100 (very low risk). The score should reflect the severity and potential impact of the risks, not just the quantity. A standard, balanced agreement should score around 85. A one-sided or poorly drafted agreement should score much lower.",
         "questions": [
             "What is the official job title?",
             "What is the base salary and payment frequency?",
@@ -71,10 +73,11 @@ WORKFLOW_PROMPTS = {
     },
     "Rental & Lease Agreements": {
         "instructions": "Analyze the Rental & Lease Agreement below and provide a JSON response.",
-        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "questions": [], "highlights": {}}',
+        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "risk_score": 0, "questions": [], "highlights": {}}',
         "summary_prompt": "Provide a 3-4 line neutral summary of the document's purpose, identifying the Landlord, Tenant, and the address of the rental property.",
         "key_clause_discussion_prompt": "Identify the headings of the most important clauses. Return only a list of the clause headings. Focus on: 1) Rent and Security Deposit, 2) Maintenance and Repairs, 3) Use of Premises, and 4) Term and Renewal.",
         "risks_prompt": "Identify potential risks. For each risk, specify the clause it relates to and explain the risk in a single sentence. Focus on:\n\nVague maintenance responsibilities.\nHigh penalties for late rent.\nAutomatic forfeiture of the security deposit.\nRestrictive policies on guests, subletting, or alterations.\nLandlord's right to enter the property without reasonable notice.\nAutomatic rent increase clauses.",
+        "risk_score_prompt": "Based on the identified risks, provide an overall risk score from 1 (very high risk) to 100 (very low risk). The score should reflect the severity and potential impact of the risks, not just the quantity. A standard, balanced agreement should score around 85. A one-sided or poorly drafted agreement should score much lower.",
         "questions": [
             "Who is the Landlord and who is the Tenant?",
             "What is the property address?",
@@ -94,10 +97,11 @@ WORKFLOW_PROMPTS = {
     },
     "Terms of Service": {
         "instructions": "Analyze the Terms of Service below and provide a JSON response.",
-        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "questions": [], "highlights": {}}',
+        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "risk_score": 0, "questions": [], "highlights": {}}',
         "summary_prompt": "Provide a 3-4 line neutral summary of the document, identifying the company/service and explaining that it outlines the user's rights and responsibilities when using the service.",
         "key_clause_discussion_prompt": "Identify the headings of the most important clauses. Return only a list of the clause headings. Focus on: 1) License to Use Service, 2) User-Generated Content, 3) Dispute Resolution, and 4) Limitation of Liability.",
         "risks_prompt": "Identify potential risks. For each risk, specify the clause it relates to and explain the risk in a single sentence. Focus on:\n\nClauses allowing the company to change terms at any time without explicit notice.\nMandatory arbitration clauses that waive the user's right to a class-action lawsuit.\nBroad licenses granting the company rights to use, modify, or sell user-generated content.\nSignificant limitations on the company's liability.\nAutomatic subscription renewal terms that are difficult to cancel.\nVague terms for account termination.",
+        "risk_score_prompt": "Based on the identified risks, provide an overall risk score from 1 (very high risk) to 100 (very low risk). The score should reflect the severity and potential impact of the risks, not just the quantity. A standard, balanced agreement should score around 85. A one-sided or poorly drafted agreement should score much lower.",
         "questions": [
             "How can a user terminate their account?",
             "Does the company claim any ownership or license to user-uploaded content?",
@@ -116,10 +120,11 @@ WORKFLOW_PROMPTS = {
     },
     "Privacy Policies": {
         "instructions": "Analyze the Privacy Policy below and provide a JSON response.",
-        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "questions": [], "highlights": {}}',
+        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "risk_score": 0, "questions": [], "highlights": {}}',
         "summary_prompt": "Provide a 3-4 line neutral summary of the document, explaining what types of data the company collects, how it is used, and with whom it might be shared.",
         "key_clause_discussion_prompt": "Identify the headings of the most important clauses. Return only a list of the clause headings. Focus on: 1) Information We Collect, 2) How We Use Your Information, 3) Information Sharing, and 4) User Rights.",
         "risks_prompt": 'Identify potential risks. For each risk, specify the clause it relates to and explain the risk in a single sentence. Focus on:\n\nVague language about data sharing (e.g., sharing with "affiliates" or "partners").\nCollection of sensitive data not necessary for the service.\nNo clear process for users to access, correct, or delete their personal data.\nIndefinite data retention periods.\nAutomatic opt-in to marketing or data sharing.',
+        "risk_score_prompt": "Based on the identified risks, provide an overall risk score from 1 (very high risk) to 100 (very low risk). The score should reflect the severity and potential impact of the risks, not just the quantity. A standard, balanced agreement should score around 85. A one-sided or poorly drafted agreement should score much lower.",
         "questions": [
             "What specific types of personal information are collected?",
             "Is personal information shared with or sold to third parties?",
@@ -136,10 +141,11 @@ WORKFLOW_PROMPTS = {
     },
     "General Business Contracts": {
         "instructions": "Analyze the General Business Contract below and provide a JSON response.",
-        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "questions": [], "highlights": {}}',
+        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "risk_score": 0, "questions": [], "highlights": {}}',
         "summary_prompt": "Provide a 3-4 line neutral summary of the document's purpose, identifying the parties and the general nature of the business arrangement (e.g., partnership, supply, etc.).",
         "key_clause_discussion_prompt": "Identify the headings of the most important clauses. Return only a list of the clause headings. Focus on: 1) Scope of Work/Obligations, 2) Payment Terms, 3) Term and Termination, and 4) Liability and Indemnification.",
         "risks_prompt": 'Identify potential risks. For each risk, specify the clause it relates to and explain the risk in a single sentence. Focus on:\n\nAmbiguous or undefined scope of work, deliverables, or obligations.\nUnclear payment terms (e.g., vague milestones).\nWeak or non-existent confidentiality clauses.\nOne-sided termination clauses (e.g., "termination for convenience" for only one party).\nUnfavorable governing law or jurisdiction.\nBroad indemnification clauses that make one party responsible for all risks.',
+        "risk_score_prompt": "Based on the identified risks, provide an overall risk score from 1 (very high risk) to 100 (very low risk). The score should reflect the severity and potential impact of the risks, not just the quantity. A standard, balanced agreement should score around 85. A one-sided or poorly drafted agreement should score much lower.",
         "questions": [
             "Who are the main parties to this agreement?",
             "What is the effective date and the term (duration) of the contract?",
@@ -159,10 +165,11 @@ WORKFLOW_PROMPTS = {
     },
     "Sales Agreements": {
         "instructions": "Analyze the Sales Agreement below and provide a JSON response.",
-        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "questions": [], "highlights": {}}',
+        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "risk_score": 0, "questions": [], "highlights": {}}',
         "summary_prompt": "Provide a 3-4 line neutral summary of the document, identifying the Seller, the Buyer, and the specific goods being sold.",
         "key_clause_discussion_prompt": "Identify the headings of the most important clauses. Return only a list of the clause headings. Focus on: 1) Description of Goods, 2) Purchase Price and Payment, 3) Delivery and Title, and 4) Warranties.",
         "risks_prompt": 'Identify potential risks. For each risk, specify the clause it relates to and explain the risk in a single sentence. Focus on:\n\nVague description of the goods.\nUnclear delivery terms (e.g., who pays for shipping, risk of loss during transit).\nLack of clear acceptance or rejection criteria for the goods.\n"As-is" clauses that disclaim all warranties.\nUnfavorable payment terms (e.g., 100% payment upfront).\nLimited remedies for the buyer in case of defective goods.',
+        "risk_score_prompt": "Based on the identified risks, provide an overall risk score from 1 (very high risk) to 100 (very low risk). The score should reflect the severity and potential impact of the risks, not just the quantity. A standard, balanced agreement should score around 85. A one-sided or poorly drafted agreement should score much lower.",
         "questions": [
             "Who is the Seller and who is the Buyer?",
             "What specific goods are being sold (description and quantity)?",
@@ -182,10 +189,11 @@ WORKFLOW_PROMPTS = {
     },
     "Service Contracts": {
         "instructions": "Analyze the Service Contract below and provide a JSON response.",
-        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "questions": [], "highlights": {}}',
+        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "risk_score": 0, "questions": [], "highlights": {}}',
         "summary_prompt": "Provide a 3-4 line neutral summary of the document, identifying the Service Provider, the Client, and the nature of the services to be rendered.",
         "key_clause_discussion_prompt": "Identify the headings of the most important clauses. Return only a list of the clause headings. Focus on: 1) Scope of Services, 2) Compensation, 3) Intellectual Property, and 4) Termination.",
         "risks_prompt": 'Identify potential risks. For each risk, specify the clause it relates to and explain the risk in a single sentence. Focus on:\n\nA poorly defined "Scope of Services" or "Deliverables."\nLack of clear acceptance criteria (how the client approves work).\nUnfavorable payment milestones (e.g., too much upfront).\nUnfavorable intellectual property (IP) clauses (e.g., provider losing rights to their pre-existing tools).\nOne-sided termination for convenience clauses.\nLack of clarity on handling change requests.',
+        "risk_score_prompt": "Based on the identified risks, provide an overall risk score from 1 (very high risk) to 100 (very low risk). The score should reflect the severity and potential impact of the risks, not just the quantity. A standard, balanced agreement should score around 85. A one-sided or poorly drafted agreement should score much lower.",
         "questions": [
             "Who is the Service Provider and who is the Client?",
             "What specific services are to be provided?",
@@ -202,10 +210,48 @@ WORKFLOW_PROMPTS = {
             "termination_clause": 'The full text of the "Termination" clause.',
         },
     },
+    "General Legal Document": {
+        "instructions": "Analyze the legal document below and provide a JSON response.",
+        "json_structure": '{"summary": "", "key_clause_discussion": "", "risks": [], "risk_score": 0, "questions": [], "highlights": {}}',
+        "summary_prompt": "Provide a 3-4 line neutral summary of the document's purpose, identifying the parties involved and the general nature of the agreement or declaration.",
+        "key_clause_discussion_prompt": "Identify the headings of the most important clauses or sections. Return only a list of the clause headings. Focus on clauses that define obligations, rights, liabilities, and the term/duration of the document.",
+        "risks_prompt": 'Identify potential risks. For each risk, specify the clause it relates to and explain the risk in a single sentence. Focus on:\n\nAmbiguous or undefined terms and obligations.\nOne-sided clauses that heavily favor one party.\nLack of clear termination or exit clauses.\nBroad liability or indemnification clauses.',
+        "risk_score_prompt": "Based on the identified risks, provide an overall risk score from 1 (very high risk) to 100 (very low risk). The score should reflect the severity and potential impact of the risks, not just the quantity. A standard, balanced agreement should score around 85. A one-sided or poorly drafted agreement should score much lower.",
+        "questions": [
+            "Who are the primary parties involved in this document?",
+            "What is the effective date of this document?",
+            "What are the main obligations of each party?",
+            "What is the term or duration of this document?",
+            "What jurisdiction's laws govern this document?",
+        ],
+        "highlights": {
+            "party_a": "The full name of the first primary party.",
+            "party_b": "The full name of the second primary party (if any).",
+            "effective_date": "The text defining the start or effective date.",
+            "term_clause": 'The full text of the "Term" or "Duration" clause.',
+            "governing_law": "The exact text specifying the governing law.",
+        },
+    },
 }
 
 CLAUSE_EXPLANATION_PROMPT = """
-Explain the following legal discussion in simple, easy-to-understand terms. Avoid jargon and focus on the practical implications for a non-lawyer. Return only the explanation, without any conversational text.
+Parse the following legal discussion and explain each key clause in simple, easy-to-understand terms. Avoid jargon and focus on the practical implications for a non-lawyer.
+
+Your response MUST be a JSON object with a single key "clauses", which is an array of objects. Each object in the array should have two keys: "clause" (the name of the clause) and "explanation" (the simple explanation).
+
+Example Format:
+{{
+  "clauses": [
+    {{
+      "clause": "DUTIES",
+      "explanation": "This section outlines exactly what you are expected to do, including your responsibilities and the scope of your work."
+    }},
+    {{
+      "clause": "COMPENSATION",
+      "explanation": "This details how and what you will be paid for your work, covering salary, benefits, and payment schedules."
+    }}
+  ]
+}}
 
 Discussion:
 ---

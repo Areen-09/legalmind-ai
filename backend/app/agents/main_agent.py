@@ -13,6 +13,7 @@ from app.services import storage_service
 class MainState(TypedDict):
     user_id: str
     file: Any
+    file_size_bytes: int
     doc_id: str
     text: str
     # Outputs from all agents
@@ -45,11 +46,12 @@ def run_document_agent(state: MainState):
     # that the main agent's state expects.
     
     # The result from the sub-agent IS the full analysis.
-    # We just need to put it under the correct key.
+    # We need to structure this into the main state, pulling out top-level keys.
     return {
         "doc_id": result.get("doc_id"),
         "text": result.get("text"),
-        "document_analysis": result, # The entire result is the analysis
+        "document_analysis": result,  # The entire result is the analysis
+        "risks": result.get("risks", []),  # Explicitly pull risks into the main state
     }
 
 
@@ -118,6 +120,7 @@ def start_parallel_analysis(state: MainState):
 def consolidate_results(state: MainState):
     """A dummy node to consolidate results from parallel branches."""
     print("--- MAIN AGENT: Consolidating all results ---")
+    # No longer need to calculate risk score here, it's in document_analysis
     return {}
 
 def save_to_firestore(state: MainState):
@@ -180,7 +183,7 @@ graph.add_edge("start_parallel", "generate_qa") # Add QA to parallel execution
 # 3. After all parallel agents are done, consolidate
 graph.add_edge("explain_clauses", "consolidate")
 graph.add_edge("find_highlights", "consolidate")
-graph.add_edge("generate_qa", "consolidate") # Add QA to consolidation
+graph.add_edge("generate_qa", "consolidate")
 
 # 4. Save to Firestore
 graph.add_edge("consolidate", "save_to_firestore")

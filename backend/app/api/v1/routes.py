@@ -1,6 +1,8 @@
 import io
 import logging
-from fastapi import APIRouter, Depends, UploadFile, Form, HTTPException
+import json
+from fastapi import APIRouter, Depends, UploadFile, Form, HTTPException, Response
+from fastapi.responses import StreamingResponse
 from app.agents.main_agent import main_agent
 from app.agents.qa_agent import qa_agent
 from .dependencies import get_current_user
@@ -21,9 +23,11 @@ class ReReadableUploadFile:
         self.filename = file.filename
         self.content_type = file.content_type
         self._content = None
+        self._size_bytes: int = 0
 
     async def read_content(self, file: UploadFile):
         self._content = await file.read()
+        self._size_bytes = len(self._content)
 
     @property
     def file(self):
@@ -31,6 +35,11 @@ class ReReadableUploadFile:
             return None
         # Provide a new, fresh stream every time .file is accessed
         return io.BytesIO(self._content)
+
+    @property # <-- NEW
+    def size_bytes(self) -> int: # <-- NEW
+        """Returns the size of the file in bytes.""" # <-- NEW
+        return self._size_bytes # <-- NEW
 
 router = APIRouter()
 
@@ -51,10 +60,12 @@ async def analyze_document(
         readable_file = ReReadableUploadFile(file)
         await readable_file.read_content(file)
 
+        file_size_bytes = readable_file.size_bytes
         # Invoke the main agent with all the necessary inputs
         result = main_agent.invoke({
             "user_id": user_id,
             "file": readable_file,
+            "file_size_bytes": file_size_bytes,
             "qa_question": qa_question,
             "highlight_criteria": highlight_criteria
         })
@@ -116,12 +127,129 @@ async def ask_question(doc_id: str = Form(...), question: str = Form(...), curre
         raise HTTPException(status_code=500, detail=f"An internal error occurred: {e}")
 
 @router.get("/history")
-async def get_history(current_user: dict = Depends(get_current_user)):
+async def get_history(response: Response, current_user: dict = Depends(get_current_user)):
     """Retrieves the analysis history for the current user."""
     try:
         user_id = current_user['uid']
         history = storage_service.get_analysis_history(user_id)
+
+        # 3. Set the cache header before returning
+        # This tells the browser to cache this specific user's
+        # data for 300 seconds (5 minutes).
+        response.headers["Cache-Control"] = "private, max-age=60"
+
         return {"history": history}
     except Exception as e:
         logging.error(f"CRITICAL ERROR in /history endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An internal error occurred: {e}")
+
+# This map defines the progress percentage for each step in your main_agent
+progress_map = {
+    "__entry__": {"percentage": 0, "message": "Initializing..."},
+    "process_document": {"percentage": 20, "message": "Processing document..."},
+    "start_parallel": {"percentage": 40, "message": "Starting parallel analysis..."},
+    "explain_clauses": {"percentage": 60, "message": "Explaining clauses..."},
+    "find_highlights": {"percentage": 60, "message": "Finding highlights..."},
+    "generate_qa": {"percentage": 60, "message": "Generating Q&A..."},
+    "consolidate": {"percentage": 80, "message": "Consolidating results..."},
+    "save_to_firestore": {"percentage": 90, "message": "Saving analysis..."},
+    "__end__": {"percentage": 100, "message": "Done!"}
+}
+
+def format_sse_message(data: dict) -> str:
+    """Formats a dictionary into a Server-Sent Event message string."""
+    return f"data: {json.dumps(data)}\n\n"
+
+async def stream_analysis(
+    user_id: str,
+    file: UploadFile,
+    qa_question: str,
+    highlight_criteria: str
+):
+    """
+    An async generator that streams the agent's progress.
+    """
+    try:
+        # 1. Prepare file
+        readable_file = ReReadableUploadFile(file)
+        await readable_file.read_content(file)
+        file_size_bytes = readable_file.size_bytes
+
+        # 2. Prepare agent input
+        input_dict = {
+            "user_id": user_id,
+            "file": readable_file,
+            "file_size_bytes": file_size_bytes,
+            "qa_question": qa_question,
+            "highlight_criteria": highlight_criteria
+        }
+
+        final_state = {}
+        current_percentage = -1 # Start at -1 to ensure first message (0%) is sent
+
+        # 3. Stream the agent's execution
+        async for chunk in main_agent.astream(input_dict):
+            node_name = list(chunk.keys())[0]
+            
+            if node_name in progress_map:
+                progress_info = progress_map[node_name]
+                
+                # Only send an update if the percentage has actually changed
+                if progress_info["percentage"] > current_percentage:
+                    current_percentage = progress_info["percentage"]
+                    yield format_sse_message(progress_info)
+            
+            # Store the latest state from the nodes as they run
+            if node_name != "__end__" and chunk[node_name]:
+                final_state.update(chunk[node_name])
+        
+        # 4. After the loop, send the final complete result
+        
+        # Clean up the state to remove non-serializable objects
+        final_state.pop("file", None)
+        final_state.pop("text", None)
+        if "document_analysis" in final_state and "file" in final_state.get("document_analysis", {}):
+            final_state["document_analysis"].pop("file", None)
+        
+        final_result = {
+            "percentage": 100,
+            "message": "Analysis complete!",
+            "data": final_state # Send the whole final, clean state
+        }
+        yield format_sse_message(final_result)
+
+    except Exception as e:
+        # Send an error message over the stream
+        logging.error(f"Error during analysis stream: {e}", exc_info=True)
+        error_message = {
+            "percentage": -1,
+            "message": f"An error occurred: {e}",
+            "error": True
+        }
+        yield format_sse_message(error_message)
+
+
+@router.post("/analyze-stream")
+async def analyze_document_stream(
+    file: UploadFile,
+    qa_question: str = Form("Summarize the key points of this document."),
+    highlight_criteria: str = Form("Identify all clauses related to termination and liability."),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    A single endpoint to upload and fully analyze a document,
+    streaming progress updates as Server-Sent Events.
+    """
+    print("--- /analyze-stream endpoint called ---")
+    user_id = current_user['uid']
+    
+    # Create the async generator
+    generator = stream_analysis(
+        user_id=user_id,
+        file=file,
+        qa_question=qa_question,
+        highlight_criteria=highlight_criteria
+    )
+    
+    # Return it as a streaming response
+    return StreamingResponse(generator, media_type="text/event-stream")

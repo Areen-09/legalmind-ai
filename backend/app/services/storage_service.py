@@ -14,43 +14,58 @@ def save_document(user_id: str, file: UploadFile) -> str:
     db = get_firestore_client()
     bucket = get_firebase_storage()
     doc_id = str(uuid.uuid4())
+
+    # Read content to get size and for upload
+    content = file.file.read()
+    file_size_bytes = len(content)
+    file_size_mb = round(file_size_bytes / (1024 * 1024), 2)  # Convert to MB and round
     
-    # 1. Save metadata to Firestore
+    # 1. Save metadata to Firestore, now including file size in MB
     doc_ref = db.collection("users").document(user_id).collection("analyses").document(doc_id)
     doc_ref.set({
         "filename": file.filename,
         "doc_id": doc_id,
         "status": "processing",
         "timestamp": datetime.datetime.utcnow(),
+        "file_size_mb": file_size_mb,
     })
 
-    # 2. Upload file to Storage
+    # 2. Upload file to Storage from the read content
     blob = bucket.blob(f"{user_id}/{doc_id}/{file.filename}")
-    blob.upload_from_file(file.file, content_type=file.content_type)
+    blob.upload_from_string(content, content_type=file.content_type)
     
     return doc_id
 
 
-def extract_text(file_bytes: bytes) -> str:
+import docx
+
+def extract_text(file_bytes: bytes, filename: str) -> str:
     """
     Extracts text from a file's byte content, normalizing and cleaning it.
     """
     text = ""
     try:
-        # Open the PDF from the byte stream
-        with fitz.open(stream=file_bytes, filetype="pdf") as doc:
-            # Iterate through each page and extract text
-            for page in doc:
-                page_text = page.get_text("text", textpage=None, sort=False)
-                
-                # --- FIX: Normalize and clean the text ---
-                # 1. Normalize to NFKC to handle various unicode characters
-                # 2. Encode to ASCII, ignoring errors, to remove problematic chars
-                # 3. Decode back to UTF-8
-                cleaned_text = page_text.encode('ascii', 'ignore').decode('utf-8')
-                text += cleaned_text
+        if filename.endswith(".pdf"):
+            # Open the PDF from the byte stream
+            with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+                # Iterate through each page and extract text
+                for page in doc:
+                    page_text = page.get_text("text", textpage=None, sort=False)
+                    
+                    # --- FIX: Normalize and clean the text ---
+                    # 1. Normalize to NFKC to handle various unicode characters
+                    # 2. Encode to ASCII, ignoring errors, to remove problematic chars
+                    # 3. Decode back to UTF-8
+                    cleaned_text = page_text.encode('ascii', 'ignore').decode('utf-8')
+                    text += cleaned_text
+        elif filename.endswith(".docx"):
+            doc = docx.Document(BytesIO(file_bytes))
+            for para in doc.paragraphs:
+                text += para.text + "\n"
+        elif filename.endswith(".txt"):
+            text = file_bytes.decode('utf-8')
     except Exception as e:
-        print(f"Error extracting text with fitz: {e}")
+        print(f"Error extracting text from {filename}: {e}")
         # Fallback or error handling can be added here
         return "" # Return empty string on failure
         

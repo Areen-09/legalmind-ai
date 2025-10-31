@@ -3,6 +3,7 @@ from docx import Document  # python-docx
 from docx.shared import RGBColor
 import os
 import re
+from docx2pdf import convert
 
 def highlight_text(input_path: str, output_path: str, highlights: list[str]) -> str:
     """
@@ -17,7 +18,7 @@ def highlight_text(input_path: str, output_path: str, highlights: list[str]) -> 
         str: Path to highlighted file (PDF/DOCX) OR HTML string (for TXT).
     """
     ext = os.path.splitext(input_path)[-1].lower()
-
+    
     # ---- PDF ----
     if ext == ".pdf":
         doc = fitz.open(input_path)
@@ -31,7 +32,7 @@ def highlight_text(input_path: str, output_path: str, highlights: list[str]) -> 
                 for sentence in sentences:
                     sentence = sentence.strip()
                     if len(sentence) > 2:  # Avoid searching for tiny fragments
-                        areas = page.search_for(sentence, flags=fitz.TEXT_SEARCH_CASE_INSENSITIVE)
+                        areas = page.search_for(sentence, flags=1)  # Case-insensitive search
                         for area in areas:
                             highlight = page.add_highlight_annot(area)
                             highlight.update()
@@ -57,7 +58,8 @@ def highlight_text(input_path: str, output_path: str, highlights: list[str]) -> 
                         for run in para.runs:
                             run.font.highlight_color = 7  # WD_COLOR_INDEX.YELLOW
         doc.save(output_path)
-        return output_path
+        convert(output_path, output_path.replace(".docx", ".pdf"))
+        return output_path.replace(".docx", ".pdf")
 
     # ---- TXT ----
     elif ext == ".txt":
@@ -70,7 +72,14 @@ def highlight_text(input_path: str, output_path: str, highlights: list[str]) -> 
         # Write to output file and return path, for consistency
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(content)
-        return output_path
+        
+        # Convert to PDF
+        doc = fitz.open()
+        page = doc.new_page()
+        page.insert_text((50, 72), content)
+        pdf_output_path = output_path.replace(".txt", ".pdf")
+        doc.save(pdf_output_path)
+        return pdf_output_path
 
     else:
         raise ValueError("Unsupported file format. Only PDF, DOCX, and TXT are supported.")

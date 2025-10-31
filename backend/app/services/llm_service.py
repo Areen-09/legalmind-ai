@@ -11,11 +11,13 @@ def classify_document(text: str) -> str:
     supported_doctypes = list(WORKFLOW_PROMPTS.keys())
     
     prompt = f"""
-    Based on the following text, what is the primary classification of this document?
-    Choose from the following list, or classify as "Other" if it does not fit:
+    Analyze the text below and classify it into one of the following categories:
     {', '.join(supported_doctypes)}
 
-    Return only the classification name.
+    - If the document is a legal document but does not fit into any of the specific categories above, classify it as "General Legal Document".
+    - If the document is not a legal document, classify it as "Unsupported Document Type".
+
+    Return only the single classification name and nothing else.
 
     Text:
     ---
@@ -24,10 +26,13 @@ def classify_document(text: str) -> str:
     response = llm.invoke(prompt)
     classification = response.content.strip()
 
-    if classification not in supported_doctypes:
+    all_valid_classifications = supported_doctypes + ["Unsupported Document Type"]
+
+    if classification in all_valid_classifications:
+        return classification
+    else:
+        # Fallback for unexpected model responses
         return "Unsupported Document Type"
-    
-    return classification
 
 def get_full_analysis(text: str, classification: str) -> dict:
     """Generates a full analysis of the document based on its classification."""
@@ -51,9 +56,10 @@ def get_full_analysis(text: str, classification: str) -> dict:
     1. Summary (summary): {prompt_template['summary_prompt']}
     2. Key Clause Discussion (key_clause_discussion): {prompt_template['key_clause_discussion_prompt']}
     3. Risks (risks): {prompt_template['risks_prompt']}
-    4. Questions (questions): Answer the following based only on the text. If not found, state "Not specified."
+    4. Risk Score (risk_score): {prompt_template['risk_score_prompt']}
+    5. Questions (questions): Answer the following based only on the text. If not found, state "Not specified."
     {json.dumps(prompt_template['questions'], indent=4)}
-    5. Highlights (highlights): Extract the exact, verbatim text for the following. If not found, state "Not Found."
+    6. Highlights (highlights): Extract the exact, verbatim text for the following. If not found, state "Not Found."
     {json.dumps(prompt_template['highlights'], indent=4)}
     """
     

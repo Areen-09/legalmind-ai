@@ -21,11 +21,11 @@ try:
     firebase_admin.initialize_app(cred, {
         'storageBucket': bucket_name
     })
-    print("✅ --- Firebase Admin SDK initialized successfully. ---")
+    print("--- Firebase Admin SDK initialized successfully. ---")
 
 except Exception as e:
     # This will print a very clear error message if initialization fails.
-    print(f"❌ --- CRITICAL ERROR: Firebase Admin SDK failed to initialize: {e} --- ❌")
+    print(f"--- CRITICAL ERROR: Firebase Admin SDK failed to initialize: {e} ---")
     # You might want to exit the application if Firebase is essential
     # import sys
     # sys.exit(1)
