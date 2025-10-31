@@ -8,6 +8,9 @@ ENV PYTHONUNBUFFERED 1
 # Set the working directory in the container
 WORKDIR /app
 
+# Install pandoc
+RUN apt-get update && apt-get install -y pandoc && rm -rf /var/lib/apt/lists/*
+
 # Install uv, a fast Python package installer
 RUN pip install uv
 

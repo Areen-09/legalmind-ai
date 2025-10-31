@@ -3,7 +3,7 @@ from docx import Document  # python-docx
 from docx.shared import RGBColor
 import os
 import re
-from docx2pdf import convert
+import subprocess
 
 def highlight_text(input_path: str, output_path: str, highlights: list[str]) -> str:
     """
@@ -58,8 +58,20 @@ def highlight_text(input_path: str, output_path: str, highlights: list[str]) -> 
                         for run in para.runs:
                             run.font.highlight_color = 7  # WD_COLOR_INDEX.YELLOW
         doc.save(output_path)
-        convert(output_path, output_path.replace(".docx", ".pdf"))
-        return output_path.replace(".docx", ".pdf")
+        
+        # Convert DOCX to PDF using pandoc
+        pdf_output_path = output_path.replace(".docx", ".pdf")
+        try:
+            subprocess.run(
+                ["pandoc", output_path, "-o", pdf_output_path],
+                check=True,
+                timeout=60  # Add a timeout for safety
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
+            # Handle cases where pandoc is not installed or fails
+            raise RuntimeError(f"Failed to convert DOCX to PDF using pandoc: {e}")
+            
+        return pdf_output_path
 
     # ---- TXT ----
     elif ext == ".txt":
