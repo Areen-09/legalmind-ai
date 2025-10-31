@@ -6,7 +6,7 @@ import { CustomCursor } from "@/components/custom-cursor"
 import { GrainOverlay } from "@/components/grain-overlay"
 import { MagneticButton } from "@/components/magnetic-button"
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User } from "firebase/auth"
-import { auth } from "@/lib/firebase"
+import { auth } from "../../lib/firebase"
 import { ProfileDropdown } from "@/components/profile-dropdown"
 
 export default function MockDasboard() {
@@ -99,5 +99,3 @@ export default function MockDasboard() {
     </main>
   )
 }
-
-
