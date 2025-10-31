@@ -1,0 +1,24 @@
+# Git
+.git
+.gitignore
+
+# Virtual environment
+.venv
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE-specific
+.idea/
+.vscode/
+
+# Tests
+tests/
+
+# Other
+*.egg-info

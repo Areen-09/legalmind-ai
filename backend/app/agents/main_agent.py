@@ -29,7 +29,7 @@ class MainState(TypedDict):
 
 # --- Agent Runner Nodes ---
 
-def run_document_agent(state: MainState):
+async def run_document_agent(state: MainState):
     """
     Runs the document processing agent and correctly structures its output
     for the main state.
@@ -38,20 +38,20 @@ def run_document_agent(state: MainState):
     # Initial state for the sub-agent
     doc_state = DocumentState(user_id=state["user_id"], file=state["file"])
     
-    # Invoke the sub-agent
-    result = document_agent.invoke(doc_state)
-    
-    # --- FIX: The document_agent returns a flat dictionary (DocumentState). ---
-    # We need to structure this into the nested 'document_analysis' format
-    # that the main agent's state expects.
-    
-    # The result from the sub-agent IS the full analysis.
-    # We need to structure this into the main state, pulling out top-level keys.
-    return {
-        "doc_id": result.get("doc_id"),
-        "text": result.get("text"),
-        "document_analysis": result,  # The entire result is the analysis
-        "risks": result.get("risks", []),  # Explicitly pull risks into the main state
+    # Stream the sub-agent's execution
+    final_result = {}
+    async for chunk in document_agent.astream(doc_state):
+        node_name = list(chunk.keys())[0]
+        if node_name != "__end__":
+            yield {node_name: chunk[node_name]}
+            final_result = chunk[node_name]
+
+    # After the stream is done, yield the final structured state
+    yield {
+        "doc_id": final_result.get("doc_id"),
+        "text": final_result.get("text"),
+        "document_analysis": final_result,
+        "risks": final_result.get("risks", []),
     }
 
 

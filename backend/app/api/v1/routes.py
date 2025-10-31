@@ -146,13 +146,16 @@ async def get_history(response: Response, current_user: dict = Depends(get_curre
 # This map defines the progress percentage for each step in your main_agent
 progress_map = {
     "__entry__": {"percentage": 0, "message": "Initializing..."},
-    "process_document": {"percentage": 20, "message": "Processing document..."},
-    "start_parallel": {"percentage": 40, "message": "Starting parallel analysis..."},
+    "save_file": {"percentage": 10, "message": "Saving file..."},
+    "extract_text_and_classify": {"percentage": 20, "message": "Extracting text and classifying..."},
+    "get_full_analysis": {"percentage": 30, "message": "Getting full analysis..."},
+    "embed_and_store": {"percentage": 40, "message": "Embedding and storing in vector DB..."},
+    "start_parallel": {"percentage": 50, "message": "Starting parallel analysis..."},
     "explain_clauses": {"percentage": 60, "message": "Explaining clauses..."},
-    "find_highlights": {"percentage": 60, "message": "Finding highlights..."},
-    "generate_qa": {"percentage": 60, "message": "Generating Q&A..."},
-    "consolidate": {"percentage": 80, "message": "Consolidating results..."},
-    "save_to_firestore": {"percentage": 90, "message": "Saving analysis..."},
+    "find_highlights": {"percentage": 70, "message": "Finding highlights..."},
+    "generate_qa": {"percentage": 80, "message": "Generating Q&A..."},
+    "consolidate": {"percentage": 90, "message": "Consolidating results..."},
+    "save_to_firestore": {"percentage": 95, "message": "Saving analysis to Firestore..."},
     "__end__": {"percentage": 100, "message": "Done!"}
 }
 
@@ -189,19 +192,32 @@ async def stream_analysis(
 
         # 3. Stream the agent's execution
         async for chunk in main_agent.astream(input_dict):
-            node_name = list(chunk.keys())[0]
+            # The stream now yields chunks from the main graph and the sub-graph
+            main_node_name = list(chunk.keys())[0]
             
-            if node_name in progress_map:
-                progress_info = progress_map[node_name]
+            # Default to the main node name
+            progress_node_name = main_node_name
+            
+            # If the chunk is from the document agent, unwrap the sub-graph's node name
+            if main_node_name == "process_document":
+                sub_chunk = chunk["process_document"]
+                if sub_chunk:
+                    progress_node_name = list(sub_chunk.keys())[0]
+
+            if progress_node_name in progress_map:
+                progress_info = progress_map[progress_node_name]
                 
-                # Only send an update if the percentage has actually changed
                 if progress_info["percentage"] > current_percentage:
                     current_percentage = progress_info["percentage"]
                     yield format_sse_message(progress_info)
             
             # Store the latest state from the nodes as they run
-            if node_name != "__end__" and chunk[node_name]:
-                final_state.update(chunk[node_name])
+            if main_node_name != "__end__" and chunk[main_node_name]:
+                # If the sub-chunk is the final result, it won't have a node name key
+                if main_node_name == "process_document" and "doc_id" in chunk[main_node_name]:
+                    final_state.update(chunk[main_node_name])
+                elif main_node_name != "process_document":
+                    final_state.update(chunk[main_node_name])
         
         # 4. After the loop, send the final complete result
         
