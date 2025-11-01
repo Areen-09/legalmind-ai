@@ -1,7 +1,6 @@
 "use client"
 
 import { Shader, ChromaFlow, Swirl } from "shaders/react"
-import { CustomCursor } from "@/components/custom-cursor"
 import { GrainOverlay } from "@/components/grain-overlay"
 import { HowItWorksSection } from "@/components/sections/work-section"
 import { ServicesSection } from "@/components/sections/services-section"
@@ -198,7 +197,6 @@ export default function Home() {
 
   return (
     <main className="relative h-screen w-full overflow-hidden bg-background">
-      <CustomCursor />
       <GrainOverlay />
 
       <div

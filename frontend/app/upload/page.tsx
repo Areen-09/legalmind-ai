@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Shader, ChromaFlow, Swirl } from "shaders/react"
-import { CustomCursor } from "@/components/custom-cursor"
 import { GrainOverlay } from "@/components/grain-overlay"
 import { MagneticButton } from "@/components/magnetic-button"
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User } from "firebase/auth"
@@ -53,7 +52,6 @@ export default function MockDasboard() {
 
   return (
     <main className="relative min-h-screen w-full overflow-hidden bg-background">
-      <CustomCursor />
       <GrainOverlay />
 
       <div

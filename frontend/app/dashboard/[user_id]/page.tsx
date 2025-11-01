@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { Shader, ChromaFlow, Swirl } from "shaders/react"
-import { CustomCursor } from "@/components/custom-cursor"
 import { GrainOverlay } from "@/components/grain-overlay"
 import { MagneticButton } from "@/components/magnetic-button"
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, User } from "firebase/auth"
@@ -14,6 +13,12 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { RiskItem } from "@/components/risk-item"
 import { RiskScoreRing } from "@/components/risk-score-ring"
 import { FormattedResponse } from "@/components/formatted-response"
+import { Timeline, TimelineEvent } from "@/components/timeline"
+import SummaryPanel from "@/components/dashboard/summary-panel"
+import EntitiesPanel from "@/components/dashboard/entities-panel"
+import ClausesPanel from "@/components/dashboard/clauses-panel"
+import RisksPanel, { RisksPanelProps } from "@/components/dashboard/risks-panel"
+import CommonQAPanel from "@/components/dashboard/common-questions-panel"
 
 type HistoryItem = {
   doc_id: string
@@ -30,7 +35,7 @@ type HistoryItem = {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE ? `${process.env.NEXT_PUBLIC_API_BASE}/api/v1` : "http://localhost:8000/api/v1"
 
-const sections = ["Dashboard", "Insights", "Highlights", "Risks", "Ask AI"]
+const sections = ["Dashboard", "Insights", "Quick View", "Timeline", "Ask AI"]
 
 export default function UserDashboardPage() {
   const _params = useParams<{ user_id: string }>()
@@ -46,6 +51,9 @@ export default function UserDashboardPage() {
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([])
   const [question, setQuestion] = useState("")
   const [activeClause, setActiveClause] = useState<string | null>(null)
+  const [timelineData, setTimelineData] = useState<TimelineEvent[]>([])
+  const [isTimelineLoading, setIsTimelineLoading] = useState(false)
+  const [isThinking, setIsThinking] = useState(false)
 
   useEffect(() => {
     const checkShaderReady = () => {
@@ -127,6 +135,55 @@ export default function UserDashboardPage() {
     }
   }, [history])
 
+  useEffect(() => {
+    const fetchTimelineData = async () => {
+      const docId = selectedDoc?.doc_id
+      if (!docId) return
+      setIsTimelineLoading(true)
+      try {
+        const headers = await authHeaders()
+        const form = new FormData()
+        form.append("doc_id", docId)
+        form.append(
+          "question",
+          "Extract key dates and events from the document. Present them as a JSON array of objects, where each object has 'date', 'title', and 'description' keys. Also, identify potential risks and add an 'isRisk' boolean key to the corresponding objects. The response should be only the JSON array, without any introductory text or markdown formatting."
+        )
+        const res = await fetch(`${BACKEND_URL}/ask`, { method: "POST", headers, body: form })
+        const data = await res.json()
+
+        // AI might wrap the JSON in text. Let's extract it.
+        const jsonMatch = data.answer.match(/(\[.*\])/s)
+        if (jsonMatch && jsonMatch[0]) {
+          try {
+            const parsedData = JSON.parse(jsonMatch[0])
+            setTimelineData(parsedData)
+          } catch (e) {
+            console.error("Failed to parse timeline JSON from extracted string:", e)
+            setTimelineData([]) // Reset on parsing error
+          }
+        } else {
+          // Fallback for cases where the response might be just the JSON
+          try {
+            const parsedData = JSON.parse(data.answer)
+            setTimelineData(parsedData)
+          } catch (e) {
+            console.error("Failed to parse timeline JSON directly:", e)
+            setTimelineData([]) // Reset on error
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching timeline data:", e)
+        setTimelineData([]) // Reset on fetch error
+      } finally {
+        setIsTimelineLoading(false)
+      }
+    }
+
+    if (selectedDoc) {
+      fetchTimelineData()
+    }
+  }, [selectedDoc])
+
   const handleUpload = async (file: File) => {
     if (!user) return
     setIsAnalyzing(true)
@@ -191,6 +248,7 @@ export default function UserDashboardPage() {
     const q = question.trim()
     setQuestion("")
     setChat((c) => [...c, { role: "user", content: q }])
+    setIsThinking(true)
     try {
       const headers = await authHeaders()
       const form = new FormData()
@@ -201,10 +259,93 @@ export default function UserDashboardPage() {
       setChat((c) => [...c, { role: "assistant", content: data.answer || "" }])
     } catch (e) {
       console.error(e)
+    } finally {
+      setIsThinking(false)
     }
   }
 
   const displayDoc = useMemo(() => selectedDoc, [selectedDoc])
+
+  const parsedRisks = useMemo((): RisksPanelProps => {
+    const defaultRisks: RisksPanelProps = {
+      financialRisk: { level: "No risks", description: "No financial risks identified." },
+      complianceRisk: { level: "No risks", description: "No compliance risks identified." },
+      timelineRisk: { level: "No risks", description: "No timeline risks identified." },
+    }
+
+    if (!displayDoc?.risks || displayDoc.risks.length === 0) {
+      return defaultRisks
+    }
+
+    const categorizedRisks = { ...defaultRisks }
+
+    displayDoc.risks.forEach((risk) => {
+      try {
+        const riskObj = typeof risk === "string" ? JSON.parse(risk) : risk
+        const riskString = riskObj.explanation || JSON.stringify(riskObj)
+        const lowerCaseRisk = riskString.toLowerCase()
+        let level: "No risks" | "Medium" | "Strong" = "Medium"
+
+        if (lowerCaseRisk.includes("strong") || lowerCaseRisk.includes("high")) {
+          level = "Strong"
+        } else if (lowerCaseRisk.includes("no risk")) {
+          level = "No risks"
+        }
+
+        if (lowerCaseRisk.includes("financial")) {
+          categorizedRisks.financialRisk = { level, description: riskString }
+        } else if (lowerCaseRisk.includes("compliance")) {
+          categorizedRisks.complianceRisk = { level, description: riskString }
+        } else if (lowerCaseRisk.includes("timeline") || lowerCaseRisk.includes("delay")) {
+          categorizedRisks.timelineRisk = { level, description: riskString }
+        }
+      } catch (e) {
+        console.error("Failed to parse risk:", risk, e)
+      }
+    })
+
+    return categorizedRisks
+  }, [displayDoc?.risks])
+
+  const entities = useMemo(() => {
+    const analysis = displayDoc?.document_analysis
+    if (!analysis || !analysis.classification || !analysis.highlights) {
+      return []
+    }
+
+    const { classification, highlights } = analysis
+    let entityKeys: string[] = []
+
+    switch (classification) {
+      case "Non-Disclosure Agreements (NDAs)":
+        entityKeys = ["disclosing_party", "receiving_party"]
+        break
+      case "Employment Contracts":
+        entityKeys = ["employee_name", "employer_name"]
+        break
+      case "Rental & Lease Agreements":
+        entityKeys = ["landlord_name", "tenant_name"]
+        break
+      case "Terms of Service":
+        entityKeys = ["company_name"]
+        break
+      case "General Business Contracts":
+      case "General Legal Document":
+        entityKeys = ["party_a", "party_b"]
+        break
+      case "Sales Agreements":
+        entityKeys = ["seller_name", "buyer_name"]
+        break
+      case "Service Contracts":
+        entityKeys = ["service_provider_name", "client_name"]
+        break
+      default:
+        // Fallback for other types, though less reliable
+        return Object.values(highlights).slice(0, 2).filter(Boolean) as string[]
+    }
+
+    return entityKeys.map((key) => highlights[key]).filter(Boolean) as string[]
+  }, [displayDoc?.document_analysis])
 
   const clauses = useMemo(() => {
     const explanation = displayDoc?.clause_explanation
@@ -241,7 +382,7 @@ export default function UserDashboardPage() {
       case "Dashboard":
         return (
           <div className="mx-auto max-w-6xl h-full">
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-6 backdrop-blur-xl flex flex-col h-full">
+            <div className="rounded-2xl bg-black/25 p-6 backdrop-blur-xl ring-1 ring-white/10 flex flex-col h-full">
               <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                 <div>
                   <h2 className="text-2xl font-semibold text-white">Your Document Dashboard</h2>
@@ -275,12 +416,12 @@ export default function UserDashboardPage() {
 
               {displayDoc && (
                 <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div className="rounded-xl border border-white/10 bg-white/10 p-4 text-white/90 backdrop-blur-xl">
+                  <div className="rounded-xl bg-black/25 p-4 text-white/90 backdrop-blur-xl ring-1 ring-white/10">
                     <div className="text-sm text-white/70">Document</div>
                     <div className="truncate text-lg font-medium">{displayDoc.filename || displayDoc.doc_id}</div>
                     <div className="text-xs text-white/60">{displayDoc.document_analysis?.classification || "completed"}</div>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-white/10 p-4 text-white/90 backdrop-blur-xl flex items-center justify-between">
+                  <div className="rounded-xl bg-black/25 p-4 text-white/90 backdrop-blur-xl ring-1 ring-white/10 flex items-center justify-between">
                     <div>
                       <div className="text-sm text-white/70">Risk Score</div>
                       <div className="text-lg font-medium">{displayDoc.document_analysis?.risk_score ?? "N/A"}</div>
@@ -289,7 +430,7 @@ export default function UserDashboardPage() {
                       <RiskScoreRing score={displayDoc.document_analysis?.risk_score ?? 0} />
                     </div>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-white/10 p-4 text-white/90 backdrop-blur-xl">
+                  <div className="rounded-xl bg-black/25 p-4 text-white/90 backdrop-blur-xl ring-1 ring-white/10">
                     <div className="text-sm text-white/70">Risks</div>
                     <div className="text-lg font-medium">{displayDoc.risks?.length ?? 0}</div>
                   </div>
@@ -303,7 +444,7 @@ export default function UserDashboardPage() {
                     <button
                       key={h.doc_id}
                       onClick={() => setSelectedDoc(h)}
-                      className="rounded-xl border border-white/10 bg-white/10 p-4 text-left text-white/90 transition hover:bg-white/20 backdrop-blur-xl"
+                      className="rounded-xl bg-black/25 p-4 text-left text-white/90 transition hover:bg-white/20 backdrop-blur-xl ring-1 ring-white/10"
                     >
                       <div className="truncate text-sm text-white/70">{h.document_analysis?.classification || "Document"}</div>
                       <div className="truncate text-base font-medium">{h.filename || h.doc_id}</div>
@@ -318,119 +459,131 @@ export default function UserDashboardPage() {
       case "Insights":
         return (
           <div className="mx-auto max-w-6xl h-full">
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-6 backdrop-blur-xl flex flex-col h-full">
+            <div className="rounded-2xl bg-black/25 p-6 backdrop-blur-xl ring-1 ring-white/10 flex flex-col h-full">
               <h2 className="mb-4 text-2xl font-semibold text-white">Insights</h2>
               {!displayDoc ? (
                 <p className="text-white/70">No document selected.</p>
               ) : (
                 <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                    <div className="rounded-xl border border-white/10 bg-white/10 p-4 text-white/90 backdrop-blur-xl">
-                      <h3 className="mb-2 text-lg font-medium text-white">Summary</h3>
-                      <p className="whitespace-pre-wrap text-white/80">{displayDoc.document_analysis?.summary || "—"}</p>
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <div className="lg:col-span-2">
+                      <SummaryPanel summary={displayDoc.document_analysis?.summary} />
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-white/10 p-4 text-white/90 backdrop-blur-xl">
-                      <h3 className="mb-2 text-lg font-medium text-white">Clauses</h3>
-                      <Accordion type="single" collapsible className="w-full">
-                        {clauses.map((item: { clause: string; explanation: string }, index: number) => (
-                          <AccordionItem key={index} value={`item-${index}`} className="border-b-0">
-                            <AccordionTrigger
-                              className="my-1 rounded-lg bg-white/10 px-3 py-2 text-left text-sm font-medium text-white/80 hover:bg-white/20"
-                              onClick={() => setActiveClause(activeClause === `item-${index}` ? null : `item-${index}`)}
-                            >
-                              {item.clause}
-                            </AccordionTrigger>
-                            <AccordionContent className="mt-1 rounded-lg bg-black/20 p-3 text-sm text-white/70">{item.explanation}</AccordionContent>
-                          </AccordionItem>
-                        ))}
-                      </Accordion>
+                    <EntitiesPanel entities={entities} />
+                    <div className="lg:col-span-3">
+                      <ClausesPanel clauses={clauses} activeClause={activeClause} setActiveClause={setActiveClause} />
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-white/10 p-4 text-white/90 backdrop-blur-xl lg:col-span-2">
-                      <h3 className="mb-2 text-lg font-medium text-white">Generated Questions</h3>
-                      <ul className="list-disc space-y-2 pl-5 text-white/80">
-                        {(displayDoc.qa_response?.questions || []).map((q: any, i: number) => (
-                          <li key={i}>{typeof q === "string" ? q : q?.question || JSON.stringify(q)}</li>
-                        ))}
-                      </ul>
+                    <div className="lg:col-span-2">
+                      <RisksPanel {...parsedRisks} />
                     </div>
+                    <CommonQAPanel qa={displayDoc.qa_response?.questions || []} />
                   </div>
                 </div>
               )}
             </div>
           </div>
         )
-      case "Highlights":
+      case "Quick View":
         return (
-          <div className="mx-auto max-w-6xl h-full">
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-6 backdrop-blur-xl flex flex-col h-full">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-semibold text-white">Highlights</h2>
-                {displayDoc?.highlighted_doc_url && (
-                  <a
-                    href={displayDoc.highlighted_doc_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-block rounded-lg bg-white/20 px-3 py-2 text-white hover:bg-white/30"
-                  >
-                    Download
-                  </a>
-                )}
+          <div className="mx-auto max-w-full h-full">
+            {!displayDoc ? (
+              <div className="rounded-2xl bg-black/25 p-6 backdrop-blur-xl ring-1 ring-white/10 flex flex-col h-full">
+                <p className="text-white/70">No document selected.</p>
               </div>
-              {!displayDoc ? (
-                <p className="text-white/70">No document selected.</p>
-              ) : (
-                <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                  {displayDoc.highlighted_doc_url ? (
-                    <div className="w-full h-full">
-                      <iframe src={displayDoc.highlighted_doc_url} className="w-full h-full border-0" title="Highlighted PDF" />
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      {Array.isArray(displayDoc.highlights)
-                        ? displayDoc.highlights.map((h: any, i: number) => (
-                            <div key={i} className="rounded-xl border border-white/10 bg-white/10 p-4 text-white/90 backdrop-blur-xl">
-                              <div className="text-sm text-white/70">Section</div>
-                              <div className="whitespace-pre-wrap">{typeof h === "string" ? h : JSON.stringify(h)}</div>
-                            </div>
-                          ))
-                        : Object.entries(displayDoc.highlights || {}).map(([k, v], i) => (
-                            <div key={i} className="rounded-xl border border-white/10 bg-white/10 p-4 text-white/90 backdrop-blur-xl">
-                              <div className="text-sm text-white/70">{k}</div>
-                              <div className="whitespace-pre-wrap">{typeof v === "string" ? (v as string) : JSON.stringify(v)}</div>
-                            </div>
-                          ))}
-                    </div>
-                  )}
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 h-full">
+                <div className="lg:col-span-3 rounded-2xl bg-black/25 p-6 backdrop-blur-xl ring-1 ring-white/10 flex flex-col h-full">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-semibold text-white">Document</h2>
+                    {displayDoc?.highlighted_doc_url && (
+                      <a
+                        href={displayDoc.highlighted_doc_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-block rounded-lg bg-white/20 px-3 py-2 text-white hover:bg-white/30"
+                      >
+                        Download
+                      </a>
+                    )}
+                  </div>
+                  <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                    {displayDoc.highlighted_doc_url ? (
+                      <div className="w-full h-full">
+                        <iframe src={displayDoc.highlighted_doc_url} className="w-full h-full border-0" title="Highlighted PDF" />
+                      </div>
+                    ) : (
+                      <p className="text-white/70">No highlighted document available.</p>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
+                <div className="lg:col-span-2 h-full overflow-y-auto" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                  <div className="space-y-6">
+                    <div className="rounded-2xl bg-black/25 p-6 backdrop-blur-xl ring-1 ring-white/10">
+                      <h2 className="text-2xl font-semibold text-white mb-4">Risk Assessment</h2>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-4xl font-bold text-white">{displayDoc.document_analysis?.risk_score ?? "N/A"}</div>
+                          <div className="text-sm text-white/70">{displayDoc.risks?.length ?? 0} risks identified</div>
+                        </div>
+                        <div className="h-24 w-24">
+                          <RiskScoreRing score={displayDoc.document_analysis?.risk_score ?? 0} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-black/25 p-6 backdrop-blur-xl ring-1 ring-white/10 flex flex-col">
+                      <h2 className="text-2xl font-semibold text-white mb-4">Summary</h2>
+                      <div>
+                        <p className="whitespace-pre-wrap text-white/80">{displayDoc.document_analysis?.summary || "—"}</p>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-black/25 p-6 backdrop-blur-xl ring-1 ring-white/10">
+                      <h2 className="text-2xl font-semibold text-white mb-4">Key Risks</h2>
+                      <div className="space-y-3 text-white/80">
+                        {(displayDoc.risks || []).slice(0, 3).map((r: any, i: number) => (
+                          <RiskItem key={i} risk={typeof r === "string" ? r : JSON.stringify(r)} />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-black/25 p-6 backdrop-blur-xl ring-1 ring-white/10">
+                      <h2 className="text-2xl font-semibold text-white mb-4">Key Clauses</h2>
+                      <div className="space-y-3">
+                        {clauses.slice(0, 3).map((item: { clause: string; explanation: string }, index: number) => (
+                          <div key={index}>
+                            <h3 className="font-semibold text-white">{item.clause}</h3>
+                            <p className="text-white/70 text-sm">{item.explanation}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setCurrentSection("Insights")}
+                        className="mt-4 text-sm font-medium text-white/80 hover:text-white"
+                      >
+                        View all clauses →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )
-      case "Risks":
+      case "Timeline":
         return (
           <div className="mx-auto max-w-6xl h-full">
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-6 backdrop-blur-xl flex flex-col h-full">
-              <h2 className="mb-4 text-2xl font-semibold text-white">Risks</h2>
-              {!displayDoc ? (
-                <p className="text-white/70">No document selected.</p>
-              ) : (
-                <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                  <ul className="space-y-3 text-white/80">
-                    {(displayDoc.risks || []).map((r: any, i: number) => (
-                      <RiskItem key={i} risk={typeof r === "string" ? r : JSON.stringify(r)} />
-                    ))}
-                  </ul>
-                </div>
-              )}
+            <div className="rounded-2xl bg-black/25 p-6 backdrop-blur-xl ring-1 ring-white/10 flex flex-col h-full">
+              <h2 className="mb-4 text-2xl font-semibold text-white">Timeline</h2>
+              <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                {isTimelineLoading ? <p className="text-white/70">Loading timeline...</p> : <Timeline data={timelineData} />}
+              </div>
             </div>
           </div>
-        )
+        );
       case "Ask AI":
         return (
           <div className="mx-auto flex h-full max-w-6xl flex-col">
-            <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-white/10 p-6 backdrop-blur-xl">
+            <div className="flex h-full flex-col rounded-2xl bg-black/25 p-6 backdrop-blur-xl ring-1 ring-white/10">
               <h2 className="mb-4 text-2xl font-semibold text-white">Ask AI</h2>
-              <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-white/5">
+              <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-black/25">
                 <div className="flex flex-1 flex-col space-y-4 overflow-y-auto p-4">
                   {chat.length === 0 && <p className="text-white/60">Ask questions about this document.</p>}
                   {chat.map((m, i) => (
@@ -445,6 +598,13 @@ export default function UserDashboardPage() {
                       </div>
                     </div>
                   ))}
+                  {isThinking && (
+                    <div className="flex justify-start">
+                      <div className="max-w-prose rounded-xl p-3 bg-white/10 text-white/90">
+                        <p>Thinking...</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="border-t border-white/10 p-3">
                   <div className="flex items-center gap-3">
@@ -473,7 +633,6 @@ export default function UserDashboardPage() {
 
   return (
     <main className="relative w-full bg-background">
-      <CustomCursor />
       <GrainOverlay />
 
       <div

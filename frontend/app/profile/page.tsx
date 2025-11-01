@@ -1,7 +1,6 @@
 "use client"
 
 import { Shader, ChromaFlow, Swirl } from "shaders/react"
-import { CustomCursor } from "@/components/custom-cursor"
 import { GrainOverlay } from "@/components/grain-overlay"
 import { MagneticButton } from "@/components/magnetic-button"
 import { useRef, useEffect, useState } from "react"
@@ -55,7 +54,6 @@ export default function ProfilePage() {
 
   return (
     <main className="relative h-screen w-full overflow-hidden bg-background">
-      <CustomCursor />
       <GrainOverlay />
 
       <div
