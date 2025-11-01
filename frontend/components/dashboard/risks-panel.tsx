@@ -9,6 +9,7 @@ export interface RisksPanelProps {
   financialRisk: Risk;
   complianceRisk: Risk;
   timelineRisk: Risk;
+  otherRisk: Risk;
 }
 
 const RiskCategory: React.FC<{ title: string; risk: Risk }> = ({ title, risk }) => {
@@ -34,7 +35,7 @@ const RiskCategory: React.FC<{ title: string; risk: Risk }> = ({ title, risk }) 
   );
 };
 
-const RisksPanel: React.FC<RisksPanelProps> = ({ financialRisk, complianceRisk, timelineRisk }) => {
+const RisksPanel: React.FC<RisksPanelProps> = ({ financialRisk, complianceRisk, timelineRisk, otherRisk }) => {
   return (
     <div className="rounded-xl bg-black/25 p-4 text-white/90 backdrop-blur-xl ring-1 ring-white/10">
       <h3 className="mb-2 text-lg font-medium text-white">Risks</h3>
@@ -42,6 +43,7 @@ const RisksPanel: React.FC<RisksPanelProps> = ({ financialRisk, complianceRisk, 
         <RiskCategory title="Financial Risk" risk={financialRisk} />
         <RiskCategory title="Compliance Risk" risk={complianceRisk} />
         <RiskCategory title="Timeline Risk" risk={timelineRisk} />
+        <RiskCategory title="Other Risk" risk={otherRisk} />
       </div>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
+import { Menu, X } from "lucide-react"
 import { Shader, ChromaFlow, Swirl } from "shaders/react"
 import { GrainOverlay } from "@/components/grain-overlay"
 import { MagneticButton } from "@/components/magnetic-button"
@@ -19,6 +20,7 @@ import EntitiesPanel from "@/components/dashboard/entities-panel"
 import ClausesPanel from "@/components/dashboard/clauses-panel"
 import RisksPanel, { RisksPanelProps } from "@/components/dashboard/risks-panel"
 import CommonQAPanel from "@/components/dashboard/common-questions-panel"
+import AnalyzingDocument from "@/components/dashboard/analyzing-document"
 
 type HistoryItem = {
   doc_id: string
@@ -43,6 +45,20 @@ export default function UserDashboardPage() {
   const [isLoaded, setIsLoaded] = useState(false)
   const shaderContainerRef = useRef<HTMLDivElement>(null)
   const [user, setUser] = useState<User | null>(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setIsSidebarOpen(false)
+      } else {
+        setIsSidebarOpen(true)
+      }
+    }
+    handleResize()
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [])
 
   const [selectedDoc, setSelectedDoc] = useState<HistoryItem | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
@@ -228,6 +244,7 @@ export default function UserDashboardPage() {
                   clause_explanation: evt.data.clause_explanation,
                 }
                 setSelectedDoc(finalDoc)
+                setCurrentSection("Quick View")
               }
             }
           } catch (e) {
@@ -266,46 +283,70 @@ export default function UserDashboardPage() {
 
   const displayDoc = useMemo(() => selectedDoc, [selectedDoc])
 
+  const preParsedRisks = useMemo(() => {
+    if (!displayDoc?.risks) return []
+    return displayDoc.risks.map((risk) => {
+      if (typeof risk === "string") {
+        try {
+          return JSON.parse(risk)
+        } catch {
+          return { explanation: risk }
+        }
+      }
+      return risk
+    })
+  }, [displayDoc?.risks])
+
   const parsedRisks = useMemo((): RisksPanelProps => {
     const defaultRisks: RisksPanelProps = {
       financialRisk: { level: "No risks", description: "No financial risks identified." },
       complianceRisk: { level: "No risks", description: "No compliance risks identified." },
       timelineRisk: { level: "No risks", description: "No timeline risks identified." },
+      otherRisk: { level: "No risks", description: "No other risks identified." },
     }
 
-    if (!displayDoc?.risks || displayDoc.risks.length === 0) {
+    if (!preParsedRisks || preParsedRisks.length === 0) {
       return defaultRisks
     }
 
     const categorizedRisks = { ...defaultRisks }
+    const otherRisks: { level: "No risks" | "Medium" | "Strong"; description: string }[] = []
 
-    displayDoc.risks.forEach((risk) => {
-      try {
-        const riskObj = typeof risk === "string" ? JSON.parse(risk) : risk
-        const riskString = riskObj.explanation || JSON.stringify(riskObj)
-        const lowerCaseRisk = riskString.toLowerCase()
-        let level: "No risks" | "Medium" | "Strong" = "Medium"
+    preParsedRisks.forEach((risk) => {
+      const riskString = risk.explanation || JSON.stringify(risk)
+      const lowerCaseRisk = riskString.toLowerCase()
+      let level: "No risks" | "Medium" | "Strong" = "Medium"
 
-        if (lowerCaseRisk.includes("strong") || lowerCaseRisk.includes("high")) {
-          level = "Strong"
-        } else if (lowerCaseRisk.includes("no risk")) {
-          level = "No risks"
-        }
+      if (lowerCaseRisk.includes("strong") || lowerCaseRisk.includes("high")) {
+        level = "Strong"
+      } else if (lowerCaseRisk.includes("no risk")) {
+        level = "No risks"
+      }
 
-        if (lowerCaseRisk.includes("financial")) {
-          categorizedRisks.financialRisk = { level, description: riskString }
-        } else if (lowerCaseRisk.includes("compliance")) {
-          categorizedRisks.complianceRisk = { level, description: riskString }
-        } else if (lowerCaseRisk.includes("timeline") || lowerCaseRisk.includes("delay")) {
-          categorizedRisks.timelineRisk = { level, description: riskString }
-        }
-      } catch (e) {
-        console.error("Failed to parse risk:", risk, e)
+      if (lowerCaseRisk.includes("financial")) {
+        categorizedRisks.financialRisk = { level, description: riskString }
+      } else if (lowerCaseRisk.includes("compliance")) {
+        categorizedRisks.complianceRisk = { level, description: riskString }
+      } else if (lowerCaseRisk.includes("timeline") || lowerCaseRisk.includes("delay")) {
+        categorizedRisks.timelineRisk = { level, description: riskString }
+      } else {
+        otherRisks.push({ level, description: riskString })
       }
     })
 
+    if (otherRisks.length > 0) {
+      categorizedRisks.otherRisk.description = otherRisks.map((r) => r.description).join("\n\n")
+      if (otherRisks.some((r) => r.level === "Strong")) {
+        categorizedRisks.otherRisk.level = "Strong"
+      } else if (otherRisks.some((r) => r.level === "Medium")) {
+        categorizedRisks.otherRisk.level = "Medium"
+      } else {
+        categorizedRisks.otherRisk.level = "No risks"
+      }
+    }
+
     return categorizedRisks
-  }, [displayDoc?.risks])
+  }, [preParsedRisks])
 
   const entities = useMemo(() => {
     const analysis = displayDoc?.document_analysis
@@ -377,6 +418,28 @@ export default function UserDashboardPage() {
     return []
   }, [displayDoc?.clause_explanation])
 
+  const parsedQA = useMemo(() => {
+    const qaData = displayDoc?.qa_response?.questions
+    if (!qaData || !Array.isArray(qaData)) return []
+
+    return qaData
+      .map((item) => {
+        if (typeof item === "string") {
+          const parts = item.split(/:\s*(.*)/s)
+          if (parts.length > 1) {
+            return {
+              question: parts[0],
+              answer: parts[1],
+            }
+          }
+        } else if (typeof item === "object" && item !== null && "question" in item && "answer" in item) {
+          return item
+        }
+        return null
+      })
+      .filter(Boolean)
+  }, [displayDoc?.qa_response])
+
   const renderSection = () => {
     switch (currentSection) {
       case "Dashboard":
@@ -401,18 +464,6 @@ export default function UserDashboardPage() {
                   <span>Upload</span>
                 </label>
               </div>
-
-              {isAnalyzing && (
-                <div className="mt-6">
-                  <div className="mb-2 flex items-center justify-between text-sm text-white/80">
-                    <span>{progress?.message || "Analyzing..."}</span>
-                    <span>{progress?.percentage ?? 0}%</span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-white/10">
-                    <div className="h-2 rounded-full bg-white/70" style={{ width: `${progress?.percentage ?? 0}%` }} />
-                  </div>
-                </div>
-              )}
 
               {displayDoc && (
                 <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -476,7 +527,7 @@ export default function UserDashboardPage() {
                     <div className="lg:col-span-2">
                       <RisksPanel {...parsedRisks} />
                     </div>
-                    <CommonQAPanel qa={displayDoc.qa_response?.questions || []} />
+                    <CommonQAPanel qa={parsedQA} />
                   </div>
                 </div>
               )}
@@ -539,8 +590,8 @@ export default function UserDashboardPage() {
                     <div className="rounded-2xl bg-black/25 p-6 backdrop-blur-xl ring-1 ring-white/10">
                       <h2 className="text-2xl font-semibold text-white mb-4">Key Risks</h2>
                       <div className="space-y-3 text-white/80">
-                        {(displayDoc.risks || []).slice(0, 3).map((r: any, i: number) => (
-                          <RiskItem key={i} risk={typeof r === "string" ? r : JSON.stringify(r)} />
+                        {preParsedRisks.slice(0, 3).map((r: any, i: number) => (
+                          <RiskItem key={i} risk={r} />
                         ))}
                       </div>
                     </div>
@@ -633,6 +684,7 @@ export default function UserDashboardPage() {
 
   return (
     <main className="relative w-full bg-background">
+      {isAnalyzing && <AnalyzingDocument progress={progress} />}
       <GrainOverlay />
 
       <div
@@ -648,12 +700,17 @@ export default function UserDashboardPage() {
       </div>
 
       <header className={`fixed left-0 right-0 top-0 z-50 flex items-center justify-between px-6 py-6 transition-opacity duration-700 md:px-12 ${isLoaded ? "opacity-100" : "opacity-0"}`}>
-        <button onClick={() => setCurrentSection("Dashboard")} className="flex items-center gap-2 transition-transform hover:scale-105">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-foreground/15 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:bg-foreground/25">
-            <span className="font-sans text-xl font-bold text-foreground">L</span>
-          </div>
-          <span className="font-sans text-xl font-semibold tracking-tight text-foreground">LegalMind AI</span>
-        </button>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="md:hidden text-white">
+            {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+          <button onClick={() => setCurrentSection("Dashboard")} className="flex items-center gap-2 transition-transform hover:scale-105">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-foreground/15 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:bg-foreground/25">
+              <span className="font-sans text-xl font-bold text-foreground">L</span>
+            </div>
+            <span className="font-sans text-xl font-semibold tracking-tight text-foreground">LegalMind AI</span>
+          </button>
+        </div>
         <div className="hidden items-center gap-8 md:flex">
           {/* This is now just for show or can be removed */}
         </div>
@@ -665,12 +722,17 @@ export default function UserDashboardPage() {
       </header>
 
       <div className="flex h-screen pt-24">
-        <nav className="z-40 flex w-64 shrink-0 flex-col p-6">
+        <nav className={`z-40 flex flex-col p-6 transition-all duration-300 ${isSidebarOpen ? "w-64 shrink-0" : "w-0 overflow-hidden"}`}>
           <div className="space-y-4">
             {sections.map((item) => (
               <button
                 key={item}
-                onClick={() => setCurrentSection(item)}
+                onClick={() => {
+                  setCurrentSection(item)
+                  if (window.innerWidth < 768) {
+                    setIsSidebarOpen(false)
+                  }
+                }}
                 className={`group relative w-full text-left font-sans text-sm font-medium transition-colors ${currentSection === item ? "text-foreground" : "text-foreground/80 hover:text-foreground"}`}
               >
                 {item}
