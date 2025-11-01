@@ -13,6 +13,7 @@ import { ProfileDropdown } from "@/components/profile-dropdown"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { RiskItem } from "@/components/risk-item"
 import { RiskScoreRing } from "@/components/risk-score-ring"
+import { FormattedResponse } from "@/components/formatted-response"
 
 type HistoryItem = {
   doc_id: string
@@ -430,11 +431,18 @@ export default function UserDashboardPage() {
             <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-white/10 p-6 backdrop-blur-xl">
               <h2 className="mb-4 text-2xl font-semibold text-white">Ask AI</h2>
               <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-white/5">
-                <div className="flex-1 space-y-4 overflow-y-auto p-4">
+                <div className="flex flex-1 flex-col space-y-4 overflow-y-auto p-4">
                   {chat.length === 0 && <p className="text-white/60">Ask questions about this document.</p>}
                   {chat.map((m, i) => (
-                    <div key={i} className={`max-w-prose rounded-xl p-3 ${m.role === "user" ? "bg-white/20 text-white self-end" : "bg-white/10 text-white/90"}`}>
-                      {m.content}
+                    <div
+                      key={i}
+                      className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-prose rounded-xl p-3 ${m.role === "user" ? "bg-white/20 text-white" : "bg-white/10 text-white/90"}`}
+                      >
+                        {m.role === "assistant" ? <FormattedResponse content={m.content} /> : m.content}
+                      </div>
                     </div>
                   ))}
                 </div>
