@@ -314,7 +314,11 @@ export default function Home() {
               >
                 Dashboard
               </MagneticButton>
-              <MagneticButton size="lg" variant="secondary" onClick={() => scrollToSection(2)}>
+              <MagneticButton
+                size="lg"
+                variant="secondary"
+                onClick={() => window.open("https://drive.google.com/file/d/19ykQFAZPsc9zIgb4y5jcFCgX4vdBRTjK/view", "_blank")}
+              >
                 View Demo
               </MagneticButton>
             </div>
